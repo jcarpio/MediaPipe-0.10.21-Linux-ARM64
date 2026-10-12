@@ -2,7 +2,7 @@
 
 > **Unofficial experimental community build. Not affiliated with Google or Yahboom.**
 >
-> **Status:** A 31 MB `mediapipe-0.10.21-cp310-cp310-linux_aarch64.whl` was built on Ubuntu 22.04 ARM64 and installed in a test virtual environment. `mp.solutions.hands`, `pose`, `face_mesh`, and `holistic` successfully initialized their TensorFlow Lite CPU graphs and processed a blank RGB image. `objectron` imports, but its inference has **not** been tested. The wheel currently **requires external OpenCV 3.4 shared libraries and a Protobuf workaround**; it is **not yet a standalone distributable**.
+> **Status:** A 31 MB `mediapipe-0.10.21-cp310-cp310-linux_aarch64.whl` was built on Ubuntu 22.04 ARM64 and installed in a test virtual environment. `mp.solutions.hands`, `pose`, `face_mesh`, and `holistic` successfully initialized their TensorFlow Lite CPU graphs and processed a blank RGB image. `objectron` imports, but its inference has **not** been tested. The wheel currently **requires external OpenCV 3.4.11 shared libraries and a Protobuf workaround**; it is **not yet a standalone distributable**.
 
 ## Why this exists
 
@@ -24,20 +24,37 @@ The aim is to preserve this MediaPipe version on ARM64, document a reproducible 
 | Clean installation with no external shared libraries | **Not yet supported** |
 | Complete Yahboom / physical ROS robot integration | **Not tested** |
 
-The wheel was built with **MediaPipe v0.10.21**, **Bazel 6.5.0**, **Python 3.10**, and **CPU inference**. The Python `cv2` module used in the successful tests came from Ubuntu **OpenCV 4.5.4**. The compiled MediaPipe native extension, however, links to **eight Bazel-built OpenCV 3.4 libraries**. Mixing these OpenCV versions in one Python process needs further testing.
+The wheel was built with **MediaPipe v0.10.21**, **Bazel 6.5.0**, **Python 3.10**, and **CPU inference**. The Python `cv2` module used in the successful tests came from Ubuntu **OpenCV 4.5.4**. The compiled MediaPipe native extension, however, links to **eight Bazel-built OpenCV 3.4.11 libraries**. Mixing these OpenCV versions in one Python process needs further testing.
+
+## Experimental GitHub release
+
+The alpha release is available at **[v0.10.21-arm64-alpha.1](https://github.com/jcarpio/MediaPipe-0.10.21-Linux-ARM64/releases/tag/v0.10.21-arm64-alpha.1)**. It provides the CPython 3.10 ARM64 wheel and a **separate OpenCV 3.4.11 runtime archive**. These are experimental artifacts, **not** a fully self-contained or manylinux-certified installation.
+
+The release also has a second-generation license/audit bundle prepared for publication:
+
+- `mediapipe-0.10.21-arm64-licenses-audit-v2.zip`
+- `mediapipe-0.10.21-arm64-licenses-audit-v2.zip.sha256`
+
+**Note:** The audit-v2 files have been generated and copied to the Mac shared folder; their presence among GitHub release assets should be verified before relying on the release download links. Check each downloaded artifact against its published checksum. On Ubuntu, use `sha256sum -c filename.zip.sha256` in the directory containing both files.
+
+### Licensing and redistribution status
+
+A preliminary inventory has located license/notice files for **24 external Bazel repository names** observed in the native-linker input listings, plus the MediaPipe and OpenCV license texts. The expanded archive contains **42 collected license/notice documents**, including TensorFlow's extensive `THIRD_PARTY_NOTICES.txt`, and supporting audit reports. An inventory is **not** a legal certification and does not prove that every notice is applicable or that every obligation has been met.
+
+The OpenCV libraries were verified as **version 3.4.11**, and their dynamic dependencies were inspected. `libopencv_imgcodecs.so.3.4` contains a `grfmt_webp.cpp` source-file symbol but does **not** declare a dynamic `libwebp` dependency; this does not establish whether any WebP-related third-party code is incorporated statically. The exact set of transitive components and applicable license obligations is still under review, including relevant codec/FFmpeg considerations. No claim is made that the release is fully audited for redistribution compliance.
 
 ## Repository and release layout
 
 ```text
 mediapipe-0.10.21-linux-aarch64/
 ├── README.md
-├── patches/                 # Minimal reviewable source patches; to be exported
-├── scripts/                 # Build and tests; to be added
-├── LICENSES/                # Upstream/bundled dependency notices; to be checked
-└── release-notes/           # Verification and release checklist
+├── patches/                 # Planned: reviewable source patches
+├── scripts/                 # Planned: reproducible build/tests
+├── LICENSES/                # Planned: license inventory in Git
+└── release-notes/           # Planned: verification notes
 ```
 
-Put documentation and source patches in Git; put the binary wheel and SHA256 checksums in a **GitHub Release**, rather than committing binary outputs or build caches to Git history. Do not publish a release advertised as standalone until the packaging work below is completed.
+The layout above is a **planned repository structure**, not a statement that these directories already exist. Put documentation and source patches in Git; put the binary wheel and SHA256 checksums in a **GitHub Release**, rather than committing binary outputs or build caches to Git history. Do not publish a release advertised as standalone until the packaging work below is completed.
 
 ## Building on Ubuntu 22.04 aarch64 (experimental instructions)
 
@@ -86,7 +103,7 @@ The working MediaPipe source had these edits:
 - `third_party/opencv_linux.BUILD`: for the optional system-OpenCV route, enable header glob `include/opencv4/opencv2/**/*.h*`, include path `include/opencv4/`, and ARM64 header `include/aarch64-linux-gnu/opencv4/opencv2/cvconfig.h`. Check that the corresponding header exists in `/usr/include`.
 - `WORKSPACE`: only if necessary, use the provenance-verified KleidiAI archive checksum described above.
 
-**Important:** Even after testing system OpenCV settings, the successful wheel remained linked to Bazel's own OpenCV **3.4** libraries (`opencv_cmake`). Do not assume `--link-opencv` changed the resulting linkage; check `readelf` and `ldd`.
+**Important:** Even after testing system OpenCV settings, the successful wheel remained linked to Bazel's own OpenCV **3.4.11** libraries (`opencv_cmake`). Do not assume `--link-opencv` changed the resulting linkage; check `readelf` and `ldd`.
 
 ### 4. Build the wheel
 
@@ -102,7 +119,7 @@ python setup.py bdist_wheel 2>&1 | tee ~/mediapipe_wheel_build.log
 ls -lh dist/mediapipe-0.10.21-cp310-cp310-linux_aarch64.whl
 ```
 
-In the project, `setup.py build_py --link-opencv bdist_wheel` was also tested. Always inspect the resulting shared libraries: the wheel actually tested still required OpenCV **3.4**, not the Ubuntu system's 4.5 libraries.
+In the project, `setup.py build_py --link-opencv bdist_wheel` was also tested. Always inspect the resulting shared libraries: the wheel actually tested still required OpenCV **3.4.11**, not the Ubuntu system's 4.5 libraries.
 
 If the build stops, `setup.py` may have temporarily modified `mediapipe/__init__.py`, root `__init__.py` and `third_party/BUILD`. Inspect `git status --short` and their corresponding `.backup` files before rerunning. **Do not routinely delete `bazel-bin`, `build/` or the Bazel cache.**
 
@@ -148,7 +165,7 @@ python -m pip install 'numpy==1.26.4' 'protobuf==4.25.8' \
 
 Because `--no-deps` was used, the package metadata still reports `jax`, `jaxlib`, `opencv-contrib-python`, and `sounddevice` as missing. The successful four-model test did **not** install these. Other MediaPipe features may require them; this is not a complete dependency-resolution claim.
 
-### 2. Stage eight OpenCV 3.4 shared libraries privately
+### 2. Stage eight OpenCV 3.4.11 shared libraries privately
 
 ```bash
 cd ~/build_projects/mediapipe
@@ -234,7 +251,7 @@ print('Objects:', len(result.detected_objects or []))
 
 Recommended engineering plan:
 
-1. **Resolve the OpenCV strategy:** ideally make MediaPipe native code and Python `cv2` use a compatible single OpenCV build. Alternatively, bundle the eight OpenCV 3.4 shared objects in an isolated directory and carefully validate coexistence with system OpenCV 4.5.4. Both approaches require real testing.
+1. **Resolve the OpenCV strategy:** ideally make MediaPipe native code and Python `cv2` use a compatible single OpenCV build. Alternatively, bundle the eight OpenCV 3.4.11 shared objects in an isolated directory and carefully validate coexistence with system OpenCV 4.5.4. Both approaches require real testing.
 2. **Audit licensing:** include Apache-2.0 attribution for MediaPipe plus OpenCV and any redistributed native dependencies. Evaluate FFmpeg and codec licensing before including transitive libraries.
 3. **Investigate `auditwheel`:** install it in a separate packaging environment and run `auditwheel show dist/*.whl`. Consider `auditwheel repair` with the required `.so` files visible to the repair environment. Verify what it actually vendors, the ELF `RPATH/RUNPATH`, generated tags and glibc requirements. Repair may fail or require extra build work.
 4. **Fix Protobuf:** regenerate Python protobuf sources using a supported `protoc`, and verify imports/inference without `PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python`.
@@ -247,8 +264,10 @@ An **interim GitHub Release** may instead ship the existing wheel **plus a separ
 
 - [ ] Export minimal reviewed patches for `WORKSPACE`, `setup.py`, and the OpenCV BUILD file.
 - [ ] Record full upstream commit SHA, build environment, toolchain versions and CPU architecture.
-- [ ] Review redistributed OpenCV and transitive native dependencies and include license notices.
-- [ ] Create SHA256 checksums for downloadable artifacts.
+- [x] Collect initial upstream and dependency license notices in a separate audit-v2 archive (legal applicability review pending).
+- [ ] Review redistributed OpenCV and transitive native dependencies and determine applicable license obligations.
+- [x] Create SHA256 checksum for audit-v2 ZIP.
+- [ ] Confirm checksums are available for every downloadable binary artifact.
 - [ ] Verify all ELF linkages, wheel tags and clean-room installation.
 - [ ] Fix old Protobuf-generated descriptors or document the required workaround.
 - [ ] Test Objectron, actual images/video, and the chosen `cv2`/native OpenCV combination.
